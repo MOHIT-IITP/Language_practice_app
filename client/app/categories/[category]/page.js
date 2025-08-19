@@ -2,10 +2,11 @@
 import LessonCard from '@/components/LessonCard/lessonCard'
 import { ProductContext, } from '@/app/context/ProductContext';
 import { notFound } from 'next/navigation';
-import {  useContext, useEffect } from 'react';
+import {  useContext, useEffect, use as usePromise } from 'react';
 
 const page = ({params}) => {
-    const category = params.category;
+    const unwrappedParams = usePromise(params);
+    const category = unwrappedParams.category;
     const {categories, setCurrentCategory, currentCategory} = useContext(ProductContext)
     
     if (!categories || Object.keys(categories).length === 0) {

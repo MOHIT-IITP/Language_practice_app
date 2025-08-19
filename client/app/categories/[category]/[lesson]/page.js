@@ -1,7 +1,7 @@
 'use client'
 import { ProductContext } from "@/app/context/ProductContext";
 import { notFound, useRouter } from "next/navigation";
-import { useContext, useState, useEffect } from "react"
+import { useContext, useState, useEffect, use as usePromise } from "react"
 
 // url is /categories/[category]/[lesson]
 // This component expects params: { category: string, lesson: string }
@@ -17,9 +17,10 @@ const Question = ({ params }) => {
     setCurrentCategory
   } = useContext(ProductContext);
   
-  // Parse URL parameters
-  const categoryName = params.category;
-  const lessonId = parseInt(params.lesson, 10);
+  // Parse URL parameters (unwrap params Promise per Next.js 15 / React 19)
+  const unwrappedParams = usePromise(params);
+  const categoryName = unwrappedParams.category;
+  const lessonId = parseInt(unwrappedParams.lesson, 10);
   
   // Component state
   const [questionNo, setQuestionNo] = useState(0);
@@ -29,6 +30,8 @@ const Question = ({ params }) => {
   const [validationResult, setValidationResult] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState(null);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [wrongCount, setWrongCount] = useState(0);
 
   // Validate translation function
   const validateTranslation = async (originalText, spanishTranslation) => {
@@ -106,6 +109,8 @@ const Question = ({ params }) => {
       setShowAnswer(false);
       setValidationResult(null);
       setValidationError(null);
+      setCorrectCount(0);
+      setWrongCount(0);
     }
   }, [lessonData]);
 
@@ -144,37 +149,46 @@ const Question = ({ params }) => {
   // Handle skip question
   const handleSkip = () => {
     if (questionNo < totalQuestions - 1) {
+      setWrongCount(prev => prev + 1);
       setQuestionNo(prev => prev + 1);
       setUserAnswer("");
       setShowAnswer(false);
       setValidationResult(null);
       setValidationError(null);
     } else {
-      handleLessonComplete();
+      const finalWrong = wrongCount + 1;
+      setWrongCount(finalWrong);
+      handleLessonComplete(correctCount, finalWrong);
     }
   };
 
   // Handle next question
   const handleNextQuestion = () => {
     if (questionNo < totalQuestions - 1) {
+      if (validationResult?.status === 'CORRECT') {
+        setCorrectCount(prev => prev + 1);
+      } else {
+        setWrongCount(prev => prev + 1);
+      }
       setQuestionNo(prev => prev + 1);
       setUserAnswer("");
       setShowAnswer(false);
       setValidationResult(null);
       setValidationError(null);
     } else {
-      handleLessonComplete();
+      const isCorrect = validationResult?.status === 'CORRECT';
+      const finalCorrect = correctCount + (isCorrect ? 1 : 0);
+      const finalWrong = wrongCount + (isCorrect ? 0 : 1);
+      setCorrectCount(finalCorrect);
+      setWrongCount(finalWrong);
+      handleLessonComplete(finalCorrect, finalWrong);
     }
   };
 
   // Handle lesson completion
-  const handleLessonComplete = () => {
-    const totalLessons = Math.ceil(categories[categoryName] / 10);
-    if (lessonId < totalLessons) {
-      router.push(`/categories/${categoryName}/${lessonId + 1}`);
-    } else {
-      router.push(`/categories/${categoryName}`);
-    }
+  const handleLessonComplete = (finalCorrect, finalWrong) => {
+    const total = totalQuestions;
+    router.push(`/categories/${categoryName}/${lessonId}/summary?correct=${finalCorrect}&wrong=${finalWrong}&total=${total}`);
   };
 
   // Answer component with validation results
@@ -378,6 +392,8 @@ const Question = ({ params }) => {
           {categoryName.charAt(0).toUpperCase() + categoryName.slice(1)} - Lesson {lessonId}
         </p>
       </div>
+
+      {/* summary modal removed in favor of full-page summary route */}
     </div>
   );
 };
